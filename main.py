@@ -30,11 +30,9 @@ storage = None
 youtube = Youtube(step=4)
 website = Website()
 
-
 memory = Memory(system_message=os.getenv('SYSTEM_MESSAGE'), memory_message_count=2)
 model_management = {}
 api_keys = {}
-
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -47,7 +45,6 @@ def callback():
         print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
     return 'OK'
-
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
@@ -93,7 +90,9 @@ def handle_text_message(event):
             memory.append(user_id, 'assistant', url)
 
         else:
-            user_model = model_management[user_id]
+            user_model = model_management.get(user_id) or model_management.get('default_user')
+            if user_model is None:
+                raise KeyError
             memory.append(user_id, 'user', text)
             url = website.get_url_from_text(text)
             if url:
@@ -138,7 +137,6 @@ def handle_text_message(event):
             msg = TextSendMessage(text=str(e))
     line_bot_api.reply_message(event.reply_token, msg)
 
-
 @handler.add(MessageEvent, message=AudioMessage)
 def handle_audio_message(event):
     user_id = event.source.user_id
@@ -175,11 +173,9 @@ def handle_audio_message(event):
     os.remove(input_audio_path)
     line_bot_api.reply_message(event.reply_token, msg)
 
-
 @app.route("/", methods=['GET'])
 def home():
     return 'Hello World'
-
 
 if __name__ == "__main__":
     if os.getenv('USE_MONGO'):
@@ -187,10 +183,19 @@ if __name__ == "__main__":
         storage = Storage(MongoStorage(mongodb.db))
     else:
         storage = Storage(FileStorage('db.json'))
+
+    # 加載環境變量中的 API Key 並初始化默認用戶
+    api_key = os.getenv('OPENAI_API')
+    if api_key:
+        default_user_id = 'default_user'
+        model_management[default_user_id] = OpenAIModel(api_key=api_key)
+        print("Successfully loaded API key from environment variables")
+
     try:
         data = storage.load()
         for user_id in data.keys():
             model_management[user_id] = OpenAIModel(api_key=data[user_id])
     except FileNotFoundError:
         pass
+
     app.run(host='0.0.0.0', port=8080)
