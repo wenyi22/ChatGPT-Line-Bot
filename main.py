@@ -52,6 +52,12 @@ def handle_text_message(event):
     text = event.message.text.strip()
     logger.info(f'{user_id}: {text}')
 
+    # 從環境變數中加載 OPENAI_API 並初始化模型
+    if 'default_user' not in model_management:
+        api_key = os.getenv('OPENAI_API')
+        if api_key:
+            model_management['default_user'] = OpenAIModel(api_key=api_key)
+
     try:
         if text.startswith('/註冊'):
             api_key = text[3:].strip()
@@ -146,6 +152,12 @@ def handle_audio_message(event):
         for chunk in audio_content.iter_content():
             fd.write(chunk)
 
+    # 從環境變數中加載 OPENAI_API 並初始化模型
+    if 'default_user' not in model_management:
+        api_key = os.getenv('OPENAI_API')
+        if api_key:
+            model_management['default_user'] = OpenAIModel(api_key=api_key)
+
     try:
         if not model_management.get(user_id):
             raise ValueError('Invalid API token')
@@ -183,13 +195,6 @@ if __name__ == "__main__":
         storage = Storage(MongoStorage(mongodb.db))
     else:
         storage = Storage(FileStorage('db.json'))
-
-    # 加載環境變量中的 API Key 並初始化默認用戶
-    api_key = os.getenv('OPENAI_API')
-    if api_key:
-        default_user_id = 'default_user'
-        model_management[default_user_id] = OpenAIModel(api_key=api_key)
-        print("Successfully loaded API key from environment variables")
 
     try:
         data = storage.load()
